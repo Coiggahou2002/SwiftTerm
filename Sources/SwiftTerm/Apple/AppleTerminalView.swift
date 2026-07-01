@@ -197,7 +197,8 @@ extension TerminalView {
         let lineAscent = CTFontGetAscent (fontSet.normal)
         let lineDescent = CTFontGetDescent (fontSet.normal)
         let lineLeading = CTFontGetLeading (fontSet.normal)
-        let cellHeight = ceil(lineAscent + lineDescent + lineLeading)
+        // lineHeightMultiplier: scale the line height (1.0 = default).
+        let cellHeight = ceil((lineAscent + lineDescent + lineLeading) * lineHeightMultiplier)
         #if os(macOS)
         // The following is a more robust way of getting the largest ascii character width, but comes with a performance hit.
         // See: https://github.com/migueldeicaza/SwiftTerm/issues/286
@@ -1138,9 +1139,13 @@ extension TerminalView {
     // TODO: this should not render any lines outside the dirtyRect
     func drawTerminalContents (dirtyRect: TTRect, context: CGContext, bufferOffset: Int)
     {
+        let lineAscent = CTFontGetAscent(fontSet.normal)
         let lineDescent = CTFontGetDescent(fontSet.normal)
         let lineLeading = CTFontGetLeading(fontSet.normal)
-        let yOffset = ceil(lineDescent+lineLeading)
+        // With lineHeightMultiplier the cell is taller than the glyph box; split the
+        // extra above/below so text is vertically centered in the cell.
+        let extra = max(0, cellDimension.height - ceil(lineAscent + lineDescent + lineLeading))
+        let yOffset = ceil(lineDescent + lineLeading + extra / 2)
         let displayBuffer = terminal.displayBuffer
 
         func calcLineOffset (forRow: Int) -> CGFloat {

@@ -142,6 +142,11 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
 #endif
 
     var cellDimension: CellDimension!
+    /// Multiplier applied to the computed line height (1.0 = classic tight spacing).
+    /// Values > 1 add vertical breathing room; glyphs are centered in the taller cell.
+    public var lineHeightMultiplier: CGFloat = 1.0 {
+        didSet { if lineHeightMultiplier != oldValue { resetFont() } }
+    }
     var caretView: CaretView!
     public var terminal: Terminal!
     private var progressBarView: TerminalProgressBarView?
