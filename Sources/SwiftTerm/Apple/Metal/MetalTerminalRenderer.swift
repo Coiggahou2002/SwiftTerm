@@ -1138,16 +1138,23 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                 let runFont = runAttributes[.font] as? TTFont ?? terminalView.fontSet.normal
                 let ctFont = runFont as CTFont
                 let startColumn = shaped.segment.column + (processedGlyphs * shaped.segment.columnWidth)
-                let baseX = lineOrigin.x + (cellWidth * CGFloat(startColumn))
-                let xOffset = baseX - run.shaperRun.firstX
 
                 let textColor = runAttributes[.foregroundColor] as? TTColor ?? terminalView.nativeForegroundColor
                 let textColorSIMD = colorToSIMD(textColor)
 
+                // Anchor every glyph to its own buffer cell, exactly like the CG
+                // path's drawTerminalContents. Using the shaper's typographic
+                // advances (ctPos.x) drifts whenever a glyph's advance differs
+                // from columnWidth*cellWidth — CJK fallback fonts are narrower
+                // than two cells, so runs of CJK compressed and dumped the
+                // missing width as a gap before the next attribute run.
+                var glyphIndexInRun = 0
                 for glyphRun in run.shaperRun.glyphRuns {
                     let scaledFont = scaledFontFor(font: glyphRun.font, scale: scale)
                     for i in 0..<glyphRun.glyphs.count {
                         let glyph = glyphRun.glyphs[i]
+                        let glyphColumn = startColumn + (glyphIndexInRun * shaped.segment.columnWidth)
+                        glyphIndexInRun += 1   // count skipped glyphs too: they still occupy their cell
                         guard let entry = glyphEntry(for: scaledFont, glyph: glyph) else {
                             continue
                         }
@@ -1155,7 +1162,7 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                             continue
                         }
                         let ctPos = glyphRun.positions[i]
-                        let basePos = CGPoint(x: ctPos.x + xOffset,
+                        let basePos = CGPoint(x: lineOrigin.x + CGFloat(glyphColumn) * cellWidth,
                                               y: lineOrigin.y + yOffset + ctPos.y)
                         let pxX = basePos.x * scale + entry.bearing.x
                         let pxY = basePos.y * scale + entry.bearing.y
@@ -1201,8 +1208,9 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                     let thickness = underlineThickness * scale
                     let segmentStyle: UnderlineStyle = underlineStyle == .double ? .single : underlineStyle
 
-                    for ctPos in run.shaperRun.positions {
-                        let basePos = CGPoint(x: ctPos.x + xOffset,
+                    for (idx, ctPos) in run.shaperRun.positions.enumerated() {
+                        let col = startColumn + (idx * shaped.segment.columnWidth)
+                        let basePos = CGPoint(x: lineOrigin.x + CGFloat(col) * cellWidth,
                                               y: lineOrigin.y + yOffset + ctPos.y)
                         let x0 = basePos.x * scale
                         let x1 = (basePos.x + decorationCellWidth) * scale
@@ -1252,8 +1260,9 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
                     let strikeThickness = max(round(scale * CTFontGetUnderlineThickness(ctFont)) / scale, 0.5)
                     let strikePosition = (CTFontGetXHeight(ctFont) + strikeThickness) * 0.5
 
-                    for ctPos in run.shaperRun.positions {
-                        let basePos = CGPoint(x: ctPos.x + xOffset,
+                    for (idx, ctPos) in run.shaperRun.positions.enumerated() {
+                        let col = startColumn + (idx * shaped.segment.columnWidth)
+                        let basePos = CGPoint(x: lineOrigin.x + CGFloat(col) * cellWidth,
                                               y: lineOrigin.y + yOffset + ctPos.y)
                         let x0 = basePos.x * scale
                         let x1 = (basePos.x + decorationCellWidth) * scale
