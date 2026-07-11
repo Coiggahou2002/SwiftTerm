@@ -562,7 +562,11 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         let cellHeight = terminalView.cellDimension.height
         let lineDescent = CTFontGetDescent(terminalView.fontSet.normal)
         let lineLeading = CTFontGetLeading(terminalView.fontSet.normal)
-        let yOffset = ceil(lineDescent + lineLeading)
+        // With lineHeightMultiplier the cell is taller than the glyph box; split the
+        // extra above/below so text is vertically centered (mirrors drawTerminalContents).
+        let lineAscent = CTFontGetAscent(terminalView.fontSet.normal)
+        let extraLineSpace = max(0, cellHeight - ceil(lineAscent + lineDescent + lineLeading))
+        let yOffset = ceil(lineDescent + lineLeading + extraLineSpace / 2)
         let viewWidthPx = terminalView.bounds.width * scale
 
         let rowInfo = visibleRowRange(buffer: buffer, cellHeight: cellHeight, terminalView: terminalView)
@@ -2145,7 +2149,11 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
         guard let runs = CTLineGetGlyphRuns(ctline) as? [CTRun] else {
             return (colorVertices, [], [])
         }
-        let yOffset = ceil(lineDescent + lineLeading)
+        // Same vertical centering as buildDrawData, so the glyph inside a block
+        // cursor lines up with the row text when lineHeightMultiplier > 1.
+        let cursorLineAscent = CTFontGetAscent(terminalView.fontSet.normal)
+        let cursorExtraSpace = max(0, cellHeight - ceil(cursorLineAscent + lineDescent + lineLeading))
+        let yOffset = ceil(lineDescent + lineLeading + cursorExtraSpace / 2)
         let textColorSIMD = colorToSIMD(caretTextColor)
         let baseX = lineOrigin.x + cellWidth * doublePosition * CGFloat(buffer.x)
 
