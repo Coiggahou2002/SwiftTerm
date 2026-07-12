@@ -2751,9 +2751,22 @@ final class MetalTerminalRenderer: NSObject, MTKViewDelegate {
 
     private static func candidateBundles() -> [Bundle] {
         var bundles: [Bundle] = []
-        #if SWIFT_PACKAGE
-        bundles.append(Bundle.module)
-        #endif
+        // Resolve the SwiftPM resource bundle by hand. We deliberately do NOT touch
+        // SwiftPM's generated `Bundle.module`: its accessor bakes the build machine's
+        // absolute .build path and otherwise only probes the .app root, so once the
+        // app is built on one machine and run on another (CI -> user, or via an
+        // in-app updater) it `fatalError`s before any fallback can run. Probe the
+        // standard, code-signed locations instead; `Bundle(url:)` returns nil (never
+        // traps) when a path is absent, so this degrades gracefully to CG.
+        let resourceBundleName = "SwiftTerm_SwiftTerm.bundle"
+        for base in [Bundle.main.resourceURL,                          // <app>/Contents/Resources
+                     Bundle.main.bundleURL,                            // <app> root
+                     Bundle(for: MetalTerminalRenderer.self).resourceURL].compactMap({ $0 }) {
+            if let b = Bundle(url: base.appendingPathComponent(resourceBundleName)) {
+                bundles.append(b)
+                break
+            }
+        }
         bundles.append(Bundle(for: MetalTerminalRenderer.self))
         bundles.append(Bundle.main)
         return bundles
